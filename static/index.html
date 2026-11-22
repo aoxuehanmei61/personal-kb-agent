@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识库 Agent</title>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --panel: #fffdf9;
+    --ink: #1d1c19;
+    --ink-soft: #5f5b52;
+    --ink-faint: #9a958a;
+    --line: #e5e0d6;
+    --accent: #1f6b57;
+    --accent-soft: #e8f1ec;
+    --amber: #c2872b;
+    --user-bubble: #23423a;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(28,27,25,.04), 0 8px 24px rgba(28,27,25,.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- 侧边栏 ---------- */
+  .sidebar {
+    width: 268px;
+    flex: 0 0 268px;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    padding: 22px 18px;
+    gap: 18px;
+    overflow-y: auto;
+  }
+
+  .brand { display: flex; align-items: center; gap: 10px; }
+
+  .brand-mark {
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: #fff;
+    display: grid; place-items: center;
+    font-size: 15px; font-weight: 700;
+    letter-spacing: -.5px;
+    box-shadow: 0 2px 6px rgba(31,107,87,.28);
+  }
+
+  .brand-title { font-size: 15px; font-weight: 650; letter-spacing: -.2px; }
+  .brand-sub { font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
+
+  .stat-card {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .stat-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .stat-label { font-size: 12px; color: var(--ink-soft); }
+  .stat-value { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 600;
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .badge.on { background: var(--accent-soft); color: var(--accent); }
+  .badge.off { background: #fbf0dd; color: #a8701f; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .9px;
+    text-transform: uppercase; color: var(--ink-faint);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .doc-list { display: flex; flex-direction: column; gap: 2px; }
+
+  .doc-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 9px; border-radius: 9px;
+    font-size: 12.5px; color: var(--ink-soft);
+    transition: background .15s;
+  }
+  .doc-item:hover { background: var(--bg); }
+  .doc-icon {
+    flex: 0 0 26px; height: 26px; border-radius: 7px;
+    background: var(--bg); border: 1px solid var(--line);
+    display: grid; place-items: center;
+    font-size: 10px; font-weight: 700; color: var(--ink-faint);
+  }
+  .doc-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .doc-chunks { font-size: 10.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+  .reload-btn {
+    margin-top: auto;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px; border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink-soft);
+    font-size: 12.5px; font-weight: 550;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .reload-btn:hover { background: var(--bg); color: var(--ink); border-color: #d6d0c3; }
+  .reload-btn:active { transform: scale(.985); }
+  .reload-btn svg { width: 14px; height: 14px; }
+  .reload-btn.spinning svg { animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- 主区域 ---------- */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .topbar {
+    height: 60px;
+    flex: 0 0 60px;
+    padding: 0 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255,253,249,.72);
+    backdrop-filter: blur(12px);
+  }
+
+  .topbar-title { font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+  .topbar-meta { font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+  .chat-scroll { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+  .chat-inner {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 34px 28px 20px;
+    display: flex; flex-direction: column; gap: 22px;
+  }
+
+  /* 空状态 */
+  .empty {
+    margin-top: 12vh;
+    text-align: center;
+    animation: rise .5s ease both;
+  }
+  .empty-mark {
+    width: 54px; height: 54px; margin: 0 auto 18px;
+    border-radius: 16px;
+    background: var(--accent);
+    color: #fff;
+    display: grid; place-items: center;
+    box-shadow: 0 8px 24px rgba(31,107,87,.24);
+  }
+  .empty h1 { font-size: 21px; font-weight: 680; letter-spacing: -.4px; }
+  .empty p { margin-top: 8px; font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; }
+
+  .suggestions {
+    margin-top: 26px;
+    display: flex; flex-wrap: wrap; gap: 9px; justify-content: center;
+  }
+  .suggest {
+    padding: 9px 15px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    font-family: inherit;
+    cursor: pointer;
+    transition: all .16s;
+  }
+  .suggest:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+  /* 消息 */
+  .msg { display: flex; gap: 12px; animation: rise .35s ease both; }
+  .msg.user { flex-direction: row-reverse; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .avatar {
+    flex: 0 0 30px; height: 30px; border-radius: 9px;
+    display: grid; place-items: center;
+    font-size: 11.5px; font-weight: 700;
+  }
+  .msg.user .avatar { background: var(--user-bubble); color: #fff; }
+  .msg.bot .avatar { background: var(--accent-soft); color: var(--accent); }
+
+  .bubble-wrap { max-width: 84%; min-width: 0; }
+
+  .bubble {
+    padding: 12px 15px;
+    border-radius: var(--radius);
+    font-size: 13.5px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.user .bubble {
+    background: var(--user-bubble);
+    color: #f4f2ed;
+    border-bottom-right-radius: 5px;
+  }
+  .msg.bot .bubble {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-bottom-left-radius: 5px;
+    box-shadow: var(--shadow);
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 7px; height: 15px;
+    margin-left: 2px;
+    vertical-align: -2px;
+    background: var(--accent);
+    border-radius: 2px;
+    animation: blink 1s steps(2) infinite;
+  }
+  .ph { color: var(--ink-faint); }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* 来源 */
+  .sources {
+    margin-top: 9px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .source-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .14s;
+    max-width: 100%;
+  }
+  .source-chip:hover { border-color: var(--amber); color: #8a5d12; background: #fdf7ec; }
+  .source-chip b { font-weight: 600; }
+  .source-chip .idx {
+    flex: 0 0 auto;
+    width: 15px; height: 15px; border-radius: 4px;
+    background: var(--amber); color: #fff;
+    display: grid; place-items: center;
+    font-size: 9.5px; font-weight: 700;
+  }
+
+  /* 来源详情弹层 */
+  .modal {
+    position: fixed; inset: 0;
+    background: rgba(28,27,25,.34);
+    backdrop-filter: blur(3px);
+    display: none; place-items: center;
+    padding: 24px;
+    z-index: 60;
+  }
+  .modal.open { display: grid; animation: fade .2s ease both; }
+  @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+  .modal-card {
+    width: min(620px, 100%);
+    max-height: 74vh;
+    background: var(--panel);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(28,27,25,.22);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    animation: rise .25s ease both;
+  }
+  .modal-head {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .modal-head h3 { font-size: 13.5px; font-weight: 650; }
+  .modal-close {
+    border: none; background: transparent; cursor: pointer;
+    font-size: 20px; line-height: 1; color: var(--ink-faint); padding: 2px 6px;
+  }
+  .modal-close:hover { color: var(--ink); }
+  .modal-body {
+    padding: 18px 20px 22px;
+    overflow-y: auto;
+    font-size: 13px; line-height: 1.8;
+    white-space: pre-wrap;
+    color: var(--ink-soft);
+  }
+  .modal-meta { font-size: 11.5px; color: var(--ink-faint); }
+
+  /* 错误提示 */
+  .error-note {
+    margin-top: 9px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    background: #fdf3e3;
+    border: 1px solid #f0ddbd;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #8a5d12;
+  }
+
+  /* 输入区 */
+  .composer-wrap {
+    flex: 0 0 auto;
+    padding: 14px 28px 22px;
+    background: linear-gradient(to top, var(--bg) 62%, rgba(246,244,239,0));
+  }
+  .composer {
+    max-width: 760px;
+    margin: 0 auto;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 6px 6px 6px 16px;
+    display: flex; align-items: flex-end; gap: 8px;
+    transition: border-color .18s, box-shadow .18s;
+  }
+  .composer:focus-within {
+    border-color: #c9d8d2;
+    box-shadow: 0 1px 2px rgba(28,27,25,.04), 0 10px 30px rgba(31,107,87,.10);
+  }
+  .composer textarea {
+    flex: 1;
+    border: none; outline: none; resize: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink);
+    padding: 9px 0;
+    max-height: 132px;
+    min-height: 22px;
+  }
+  .composer textarea::placeholder { color: var(--ink-faint); }
+
+  .send {
+    flex: 0 0 34px; height: 34px;
+    border: none; border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    display: grid; place-items: center;
+    cursor: pointer;
+    transition: all .16s;
+  }
+  .send:hover { background: #185444; }
+  .send:disabled { background: #cfd8d3; cursor: not-allowed; }
+  .send svg { width: 16px; height: 16px; }
+
+  .hint {
+    max-width: 760px;
+    margin: 9px auto 0;
+    font-size: 11px;
+    color: var(--ink-faint);
+    display: flex; justify-content: space-between;
+  }
+  kbd {
+    font-family: inherit;
+    font-size: 10.5px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+  }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 9px; }
+  ::-webkit-scrollbar-thumb {
+    background: #dcd6c9; border-radius: 5px;
+    border: 2px solid var(--bg);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #c8c1b1; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  @media (max-width: 820px) {
+    .sidebar { display: none; }
+    .chat-inner { padding: 22px 16px 12px; }
+    .composer-wrap { padding: 10px 14px 16px; }
+    .topbar { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">KB</div>
+    <div>
+      <div class="brand-title">知识库 Agent</div>
+      <div class="brand-sub">本地文档 · DeepSeek 驱动</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-row">
+      <span class="stat-label">文档</span>
+      <span class="stat-value" id="docCount">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">文本块</span>
+      <span class="stat-value" id="chunkCount">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">模型</span>
+      <span class="badge off" id="keyBadge"><i class="dot"></i><span id="keyText">检测中</span></span>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">文档列表</div>
+    <div class="doc-list" id="docList" style="margin-top:8px"></div>
+  </div>
+
+  <button class="reload-btn" id="reloadBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M21 12a9 9 0 1 1-3.1-6.8"/><path d="M21 3v6h-6"/>
+    </svg>
+    重新加载文档
+  </button>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">对话</div>
+    <div class="topbar-meta" id="topMeta"></div>
+  </div>
+
+  <div class="chat-scroll" id="chatScroll">
+    <div class="chat-inner" id="chatInner">
+      <div class="empty" id="emptyState">
+        <div class="empty-mark">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="5.5" rx="7" ry="3"/>
+            <path d="M5 5.5v6.2c0 1.66 3.13 3 7 3s7-1.34 7-3V5.5"/>
+            <path d="M5 11.7v6.2c0 1.66 3.13 3 7 3s7-1.34 7-3v-6.2"/>
+          </svg>
+        </div>
+        <h1>问点你想知道的</h1>
+        <p>先在本机检索你的资料，再让 DeepSeek 照着资料回答，<br>答案会标注引用了哪几份文档。</p>
+        <div class="suggestions" id="suggestions">
+          <button class="suggest">这个知识库支持哪些文档格式？</button>
+          <button class="suggest">检索是怎么实现的？</button>
+          <button class="suggest">怎么更换模型配置？</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="composer-wrap">
+    <div class="composer">
+      <textarea id="input" rows="1" placeholder="输入问题，按 Enter 发送…"></textarea>
+      <button class="send" id="sendBtn" title="发送">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
+        </svg>
+      </button>
+    </div>
+    <div class="hint">
+      <span><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
+      <span id="hintStatus"></span>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="modalTitle">资料原文</h3>
+        <div class="modal-meta" id="modalMeta"></div>
+      </div>
+      <button class="modal-close" id="modalClose" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const chatInner = $("#chatInner");
+const chatScroll = $("#chatScroll");
+const input = $("#input");
+const sendBtn = $("#sendBtn");
+const emptyState = $("#emptyState");
+
+let busy = false;
+
+/* ---------- 知识库状态 ---------- */
+async function refreshStatus() {
+  try {
+    const res = await fetch("/api/status");
+    const data = await res.json();
+    renderStatus(data);
+  } catch (err) {
+    $("#hintStatus").textContent = "服务连接失败";
+  }
+}
+
+function renderStatus(data) {
+  $("#docCount").textContent = data.documents.length;
+  $("#chunkCount").textContent = data.chunks;
+  $("#topMeta").textContent = `${data.documents.length} 份文档 · ${data.chunks} 个文本块`;
+
+  const badge = $("#keyBadge");
+  const text = $("#keyText");
+  if (data.has_key) {
+    badge.className = "badge on";
+    text.textContent = data.model;
+  } else {
+    badge.className = "badge off";
+    text.textContent = "Key 未配置";
+  }
+
+  const list = $("#docList");
+  list.innerHTML = "";
+  if (!data.documents.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:8px 9px">docs 文件夹还是空的</div>';
+  } else {
+    for (const doc of data.documents) {
+      const ext = doc.name.includes(".") ? doc.name.split(".").pop().toUpperCase().slice(0, 4) : "DOC";
+      const el = document.createElement("div");
+      el.className = "doc-item";
+      el.innerHTML = `<div class="doc-icon">${ext}</div>
+        <div class="doc-name" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</div>
+        <div class="doc-chunks">${doc.chunks}</div>`;
+      list.appendChild(el);
+    }
+  }
+}
+
+/* ---------- 工具 ---------- */
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+function scrollToBottom() {
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+}
+
+function autoGrow() {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 132) + "px";
+}
+
+/* ---------- 弹层 ---------- */
+function openSourceModal(item, index) {
+  $("#modalTitle").textContent = item.source || "资料原文";
+  $("#modalMeta").textContent = `片段 ${index} · 相关度 ${(item.score * 100).toFixed(1)}%`;
+  $("#modalBody").textContent = item.text;
+  $("#modal").classList.add("open");
+}
+
+$("#modalClose").onclick = () => $("#modal").classList.remove("open");
+$("#modal").onclick = (e) => {
+  if (e.target === $("#modal")) $("#modal").classList.remove("open");
+};
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") $("#modal").classList.remove("open");
+});
+
+/* ---------- 发消息 ---------- */
+async function send(question) {
+  question = (question || "").trim();
+  if (!question || busy) return;
+
+  busy = true;
+  sendBtn.disabled = true;
+  if (emptyState) emptyState.remove();
+  input.value = "";
+  autoGrow();
+
+  appendUserMessage(question);
+  const bot = appendBotMessage();
+
+  let sourcesEl = null;
+  let answerText = "";
+  let hasError = false;
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+
+    if (!res.ok) throw new Error("服务返回异常");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop();
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data:")) continue;
+        let event;
+        try { event = JSON.parse(line.slice(5).trim()); } catch { continue; }
+
+        if (event.type === "sources") {
+          if (event.items.length) {
+            sourcesEl = renderSources(bot, event.items);
+          }
+        } else if (event.type === "delta") {
+          answerText += event.text;
+          bot.textEl.textContent = answerText;
+          bot.textEl.appendChild(cursorSpan());
+          scrollToBottom();
+        } else if (event.type === "error") {
+          hasError = true;
+          bot.showError(event.message);
+        } else if (event.type === "done") {
+          bot.textEl.textContent = answerText || (hasError ? "" : "（没有返回内容）");
+        }
+      }
+    }
+
+    if (!answerText && !hasError) bot.textEl.textContent = "（没有返回内容）";
+  } catch (err) {
+    bot.showError("连接服务失败：" + err.message);
+  } finally {
+    busy = false;
+    sendBtn.disabled = false;
+    scrollToBottom();
+    input.focus();
+  }
+}
+
+function cursorSpan() {
+  const span = document.createElement("span");
+  span.className = "cursor";
+  return span;
+}
+
+function appendUserMessage(text) {
+  const el = document.createElement("div");
+  el.className = "msg user";
+  el.innerHTML = `<div class="avatar">你</div>
+    <div class="bubble-wrap"><div class="bubble"></div></div>`;
+  el.querySelector(".bubble").textContent = text;
+  chatInner.appendChild(el);
+  scrollToBottom();
+  return el;
+}
+
+function appendBotMessage() {
+  const el = document.createElement("div");
+  el.className = "msg bot";
+  el.innerHTML = `<div class="avatar">AI</div>
+    <div class="bubble-wrap">
+      <div class="bubble"><span class="text"><span class="ph">思考中</span><span class="cursor"></span></span></div>
+    </div>`;
+  chatInner.appendChild(el);
+
+  const wrap = el.querySelector(".bubble-wrap");
+  const bubble = el.querySelector(".bubble");
+  const textEl = el.querySelector(".text");
+  scrollToBottom();
+
+  return {
+    el,
+    wrap,
+    bubble,
+    textEl,
+    showError(message) {
+      const note = document.createElement("div");
+      note.className = "error-note";
+      note.textContent = message;
+      bubble.appendChild(note);
+      scrollToBottom();
+    },
+  };
+}
+
+function renderSources(bot, items) {
+  const box = document.createElement("div");
+  box.className = "sources";
+  items.forEach((item, i) => {
+    const chip = document.createElement("button");
+    chip.className = "source-chip";
+    chip.innerHTML = `<span class="idx">${i + 1}</span><b></b>`;
+    chip.querySelector("b").textContent = item.source;
+    chip.title = "查看原文片段";
+    chip.onclick = () => openSourceModal(item, i + 1);
+    box.appendChild(chip);
+  });
+  bot.wrap.appendChild(box);
+  scrollToBottom();
+  return box;
+}
+
+/* ---------- 交互 ---------- */
+sendBtn.onclick = () => send(input.value);
+
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send(input.value);
+  }
+});
+
+input.addEventListener("input", autoGrow);
+
+document.querySelectorAll(".suggest").forEach((btn) => {
+  btn.onclick = () => send(btn.textContent);
+});
+
+$("#reloadBtn").onclick = async () => {
+  const btn = $("#reloadBtn");
+  btn.classList.add("spinning");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/reload", { method: "POST" });
+    const data = await res.json();
+    renderStatus(data);
+    $("#hintStatus").textContent = `已重新加载 · ${data.chunks} 个文本块`;
+    setTimeout(() => $("#hintStatus").textContent = "", 3500);
+  } catch {
+    $("#hintStatus").textContent = "加载失败";
+  } finally {
+    btn.classList.remove("spinning");
+    btn.disabled = false;
+  }
+};
+
+refreshStatus();
+input.focus();
+</script>
+</body>
+</html>
